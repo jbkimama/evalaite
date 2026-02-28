@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+google-genai
+sqlalchemy
+pdfplumber
+pillow
+python-dotenv
+jinja2
+aiofiles
+pydantic-settings
