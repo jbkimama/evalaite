@@ -20,7 +20,14 @@ from app.models import (
 )
 
 load_dotenv()
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+_client = None
+
+
+def get_client():
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
+    return _client
 
 
 # --- Parser Functions ---
@@ -101,7 +108,7 @@ feedback: explanation"""
         prompt += f"\n\nMarking Scheme:\n{marking_scheme}"
 
     try:
-        response = client.models.generate_content(model=MODEL, contents=prompt)
+        response = get_client().models.generate_content(model=MODEL, contents=prompt)
         return parse_evaluation(response.text)
     except Exception as e:
         return GeminiEvaluation(is_correct=False, score=0, feedback=f"Error: {e}")
@@ -121,7 +128,7 @@ def extract_and_evaluate_image(image: Image.Image, custom_prompt: str = None, sc
 
         if custom_prompt:
             transcript_prompt = "Transcribe all text in this image exactly as written. Return only the transcription."
-            transcript_resp = client.models.generate_content(model=MODEL, contents=[types.Part.from_bytes(data=img_bytes, mime_type="image/png"), transcript_prompt])
+            transcript_resp = get_client().models.generate_content(model=MODEL, contents=[types.Part.from_bytes(data=img_bytes, mime_type="image/png"), transcript_prompt])
             transcript = transcript_resp.text.strip()
 
             eval_prompt = custom_prompt.replace("{question}", "Evaluate the student's work")
@@ -129,7 +136,7 @@ def extract_and_evaluate_image(image: Image.Image, custom_prompt: str = None, sc
             eval_prompt = eval_prompt.replace("{correct_answer_section}", f"\nMarking Scheme:\n{scheme_text}" if scheme_text else "")
 
             contents.append(eval_prompt)
-            response = client.models.generate_content(model=MODEL, contents=contents)
+            response = get_client().models.generate_content(model=MODEL, contents=contents)
             evaluation = parse_evaluation(response.text)
             question = QuestionInput(question_text="Document Evaluation", student_answer=transcript)
             return [question], [evaluation]
@@ -141,7 +148,7 @@ Respond in JSON:
 {{"questions": [{{"question_text": "...", "student_answer": "...", "correct_answer": "..."}}]}}"""
 
         contents.append(prompt)
-        response = client.models.generate_content(model=MODEL, contents=contents)
+        response = get_client().models.generate_content(model=MODEL, contents=contents)
         questions = parse_extraction(response.text)
         if questions:
             return questions, evaluate_batch(questions, None, scheme_text)
@@ -161,7 +168,7 @@ Respond in JSON:
 {{"results": [{{"question_text": "...", "student_answer": "...", "correct_answer": "...", "is_correct": true/false, "score": 0-100, "feedback": "..."}}]}}"""
 
     try:
-        response = client.models.generate_content(model=MODEL, contents=prompt)
+        response = get_client().models.generate_content(model=MODEL, contents=prompt)
         return parse_combined(response.text)
     except Exception:
         return [], []

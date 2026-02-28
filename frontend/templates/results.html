@@ -12,7 +12,10 @@
     <div id="results" class="hidden">
         <div class="results-header">
             <h1>Review Results</h1>
-            <a href="/" class="btn btn-secondary">New Review</a>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="/api/reviews/{{ review_id }}/export/csv" class="btn btn-secondary">Export CSV</a>
+                <a href="/" class="btn btn-secondary">New Review</a>
+            </div>
         </div>
 
         <div class="summary-card" id="summary-card">
