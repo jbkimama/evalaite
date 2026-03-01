@@ -230,7 +230,7 @@ class ExamResponse(BaseModel):
     id: int
     series_id: int
     subject_id: int
-    form: str
+    form: Optional[str] = None
     subject_name: str = ""
     series_name: str = ""
     has_marking_scheme: bool = False

@@ -1,7 +1,7 @@
 """
 Evalaite - AI-Powered Exam Evaluator
 """
-from fastapi import FastAPI, Request, Depends, HTTPException, UploadFile, File, Form, Response
+from fastapi import FastAPI, Request, Depends, HTTPException, UploadFile, File, Form, Response, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
@@ -344,10 +344,12 @@ async def list_exams(request: Request, series_id: Optional[int] = None, db: DBSe
             id=e.id,
             series_id=e.series_id,
             subject_id=e.subject_id,
+            form=e.form,
             subject_name=e.subject.name if e.subject else "",
             series_name=e.series.name if e.series else "",
             has_marking_scheme=e.marking_scheme_data is not None,
             marking_scheme_filename=e.marking_scheme_filename,
+            marking_scheme_text=e.marking_scheme_text,
             evaluation_prompt=e.evaluation_prompt,
             script_count=len(e.scripts),
             evaluated_count=sum(1 for s in e.scripts if s.status == ScriptStatus.COMPLETED),
@@ -385,6 +387,7 @@ async def create_exam(data: ExamCreate, request: Request, db: DBSession = Depend
         id=exam.id,
         series_id=exam.series_id,
         subject_id=exam.subject_id,
+        form=exam.form,
         subject_name=subject.name,
         series_name=series.name,
         has_marking_scheme=False,
@@ -404,10 +407,12 @@ async def get_exam(exam_id: int, request: Request, db: DBSession = Depends(get_d
         id=exam.id,
         series_id=exam.series_id,
         subject_id=exam.subject_id,
+        form=exam.form,
         subject_name=exam.subject.name if exam.subject else "",
         series_name=exam.series.name if exam.series else "",
         has_marking_scheme=exam.marking_scheme_data is not None,
         marking_scheme_filename=exam.marking_scheme_filename,
+        marking_scheme_text=exam.marking_scheme_text,
         evaluation_prompt=exam.evaluation_prompt,
         script_count=len(exam.scripts),
         evaluated_count=len(completed),
@@ -597,22 +602,55 @@ async def delete_script(script_id: int, request: Request, db: DBSession = Depend
     return {"success": True}
 
 
+class StudentInfoUpdate(BaseModel):
+    student_name: Optional[str] = None
+    student_number: Optional[str] = None
+
+
+@app.put("/api/scripts/{script_id}/student-info")
+async def update_student_info(script_id: int, request: Request, data: StudentInfoUpdate, db: DBSession = Depends(get_db)):
+    user = require_auth(request, db)
+    script = db.query(Script).filter(Script.id == script_id).first()
+    if not script or script.exam.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Script not found")
+    script.student_name = data.student_name
+    script.student_number = data.student_number
+    db.commit()
+    return {"success": True}
+
+
 # ==================== Evaluation API ====================
 
 @app.post("/api/exams/{exam_id}/evaluate")
-async def evaluate_exam(exam_id: int, request: Request, db: DBSession = Depends(get_db)):
+async def evaluate_exam(exam_id: int, request: Request, background_tasks: BackgroundTasks, db: DBSession = Depends(get_db)):
     user = require_auth(request, db)
     exam = db.query(Exam).filter(Exam.id == exam_id, Exam.user_id == user.id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
 
-    service = ExamService(db)
-    evaluated = service.evaluate_all_scripts(exam)
+    # Run evaluation in background
+    def run_evaluation(exam_id: int):
+        import traceback
+        from app.models import get_db, Exam
+        from app.services import ExamService
+        db_session = next(get_db())
+        try:
+            exam = db_session.query(Exam).filter(Exam.id == exam_id).first()
+            if exam:
+                service = ExamService(db_session)
+                service.evaluate_all_scripts(exam)
+                print(f"[Background] Evaluation completed for exam {exam_id}")
+        except Exception as e:
+            print(f"[Background] Evaluation error for exam {exam_id}: {e}")
+            traceback.print_exc()
+        finally:
+            db_session.close()
+
+    background_tasks.add_task(run_evaluation, exam_id)
 
     return {
         "success": True,
-        "evaluated_count": len(evaluated),
-        "results": [ScriptResponse.model_validate(s) for s in evaluated]
+        "message": "Evaluation started in background"
     }
 
 

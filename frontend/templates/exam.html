@@ -13,7 +13,8 @@
     <div class="exam-actions-bar">
         <button class="btn btn-primary" id="evaluate-btn">Evaluate All Scripts</button>
         <button class="btn btn-secondary" id="export-btn">Export CSV</button>
-        <button class="btn" id="upload-more-btn">Add More Scripts</button>
+        <button class="btn btn-secondary" id="upload-more-btn">Add More Scripts</button>
+        <button class="btn btn-danger" id="delete-exam-btn">Delete Exam</button>
     </div>
 
     <div id="upload-section" class="upload-section hidden">
@@ -139,7 +140,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                 <thead>
                     <tr>
                         <th>Rank</th>
-                        <th>Student</th>
+                        <th>Student #</th>
+                        <th>Student Name</th>
                         <th>Filename</th>
                         <th>Score</th>
                         <th>Questions</th>
@@ -149,30 +151,49 @@ document.addEventListener('DOMContentLoaded', async function() {
                 </thead>
                 <tbody>
                     ${scripts.map((s, i) => {
-                        const studentDisplay = s.student_name
-                            ? `${s.student_name}${s.student_number ? ' (' + s.student_number + ')' : ''}`
-                            : '-';
                         const scoreClass = s.total_score >= 70 ? 'score-good' : s.total_score >= 50 ? 'score-ok' : 'score-bad';
                         const statusClass = s.status === 'completed' ? 'status-completed' :
-                                           s.status === 'failed' ? 'status-failed' : 'status-pending';
+                                           s.status === 'failed' ? 'status-failed' :
+                                           s.status === 'processing' ? 'status-processing' : 'status-pending';
+                        const statusText = s.status === 'processing' ? 'Analyzing...' : s.status;
 
                         return `<tr>
                             <td>${s.status === 'completed' ? i + 1 : '-'}</td>
-                            <td>${studentDisplay}</td>
-                            <td title="${s.filename}">${s.filename ? s.filename.substring(0, 30) + (s.filename.length > 30 ? '...' : '') : '-'}</td>
+                            <td>
+                                <input type="text" class="inline-input inline-input-small"
+                                    id="snum-${s.id}"
+                                    value="${(s.student_number || '').replace(/"/g, '&quot;')}"
+                                    placeholder="#"
+                                    onblur="saveStudentInfo(${s.id}, document.getElementById('sname-${s.id}').value, this.value)"
+                                    onkeydown="if(event.key==='Enter'){this.blur()}"
+                                >
+                            </td>
+                            <td>
+                                <input type="text" class="inline-input"
+                                    id="sname-${s.id}"
+                                    value="${(s.student_name || '').replace(/"/g, '&quot;')}"
+                                    placeholder="Name"
+                                    onblur="saveStudentInfo(${s.id}, this.value, document.getElementById('snum-${s.id}').value)"
+                                    onkeydown="if(event.key==='Enter'){this.blur()}"
+                                >
+                            </td>
+                            <td title="${s.filename}">${s.filename ? s.filename.substring(0, 25) + (s.filename.length > 25 ? '...' : '') : '-'}</td>
                             <td class="${s.status === 'completed' ? scoreClass : ''}" style="font-weight: 600;">
                                 ${s.total_score !== null ? s.total_score.toFixed(1) + '%' : '-'}
                             </td>
                             <td>${s.correct_answers}/${s.total_questions}</td>
-                            <td><span class="status-badge ${statusClass}">${s.status}</span></td>
+                            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                             <td>
                                 ${s.status === 'completed' ? `
                                     <a href="#" onclick="viewScript(${s.id}); return false;" class="btn-link">View</a>
                                     <a href="/api/scripts/${s.id}/export/csv" class="btn-link">CSV</a>
                                 ` : s.status === 'pending' ? `
                                     <button onclick="evaluateScript(${s.id})" class="btn-link">Evaluate</button>
+                                ` : s.status === 'processing' ? `
+                                    <span class="analyzing-text">Working...</span>
                                 ` : `
-                                    <span class="error-text" title="${s.error_message || ''}">Error</span>
+                                    <span class="error-text" title="${s.error_message || ''}">Retry</span>
+                                    <button onclick="evaluateScript(${s.id})" class="btn-link">Retry</button>
                                 `}
                                 <button onclick="deleteScript(${s.id})" class="btn-link btn-delete">Delete</button>
                             </td>
@@ -256,6 +277,24 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     };
 
+    // Save student info inline (debounced)
+    let saveTimeout = null;
+    window.saveStudentInfo = async (scriptId, name, number) => {
+        // Debounce to avoid multiple saves
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(async () => {
+            try {
+                await fetch(`/api/scripts/${scriptId}/student-info`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_name: name.trim(), student_number: number.trim() })
+                });
+            } catch (err) {
+                console.error('Failed to save student info:', err);
+            }
+        }, 300);
+    };
+
     // Evaluate all pending scripts
     evaluateBtn.addEventListener('click', async () => {
         const pending = scripts.filter(s => s.status === 'pending');
@@ -281,6 +320,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Export CSV
     exportBtn.addEventListener('click', () => {
         window.location.href = `/api/exams/${examId}/export/csv`;
+    });
+
+    // Delete exam
+    document.getElementById('delete-exam-btn').addEventListener('click', async () => {
+        if (!confirm('Delete this exam and all its scripts? This cannot be undone.')) return;
+        try {
+            await fetch(`/api/exams/${examId}`, { method: 'DELETE' });
+            window.location.href = '/';
+        } catch (err) {
+            alert('Failed to delete exam');
+        }
     });
 
     // Upload more scripts

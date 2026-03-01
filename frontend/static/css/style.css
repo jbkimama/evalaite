@@ -481,6 +481,45 @@ textarea.form-control {
 .status-completed { background: #d1fae5; color: #065f46; }
 .status-pending { background: #fef3c7; color: #92400e; }
 .status-failed { background: #fee2e2; color: #991b1b; }
+.status-processing { background: #dbeafe; color: #1e40af; }
+
+/* Inline editable inputs */
+.inline-input {
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    width: 100%;
+    max-width: 150px;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.inline-input:hover {
+    border-color: var(--gray-300);
+    background: var(--gray-50);
+}
+
+.inline-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+}
+
+.inline-input-small {
+    max-width: 80px;
+}
+
+.analyzing-text {
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.error-text {
+    color: var(--danger);
+    font-size: 0.8rem;
+}
 
 /* Score Colors */
 .score-good { color: var(--success); }
@@ -853,6 +892,112 @@ textarea.form-control {
     gap: 0.5rem;
     justify-content: flex-end;
     margin-top: 1.5rem;
+}
+
+/* Exam Page Additional Styles */
+.breadcrumb {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+    margin-bottom: 1rem;
+}
+
+.breadcrumb a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.exam-info-card {
+    background: white;
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+}
+
+.exam-info-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.exam-info-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.exam-series-badge {
+    background: var(--primary);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.score-good { color: var(--success); }
+.score-ok { color: #f59e0b; }
+.score-bad { color: var(--danger); }
+
+.status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-completed { background: #d1fae5; color: #065f46; }
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-failed { background: #fee2e2; color: #991b1b; }
+.status-processing { background: #dbeafe; color: #1e40af; }
+
+.btn-link {
+    background: none;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.btn-link:hover {
+    text-decoration: underline;
+}
+
+.btn-delete {
+    color: var(--danger);
+}
+
+.empty-text {
+    text-align: center;
+    color: var(--gray-500);
+    padding: 2rem;
+}
+
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    border: 1px solid var(--gray-200);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.loading {
+    text-align: center;
+    padding: 2rem;
+}
+
+.error-text {
+    color: var(--danger);
+    font-size: 0.8rem;
+}
+
+.files-list {
+    margin-bottom: 1rem;
 }
 
 /* Footer */

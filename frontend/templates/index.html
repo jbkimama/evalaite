@@ -249,6 +249,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     const schemeTranscription = document.getElementById('scheme-transcription');
     const schemeLoading = document.getElementById('scheme-loading');
     let currentSchemeFile = null;
+    let isTranscribing = false;
+
+    function updateCreateButton() {
+        if (isTranscribing) {
+            createExamBtn.disabled = true;
+            createExamBtn.textContent = 'Transcribing...';
+        } else {
+            createExamBtn.disabled = false;
+            createExamBtn.textContent = 'Create Exam & Evaluate';
+        }
+    }
 
     setupDropzone(schemeDropzone, schemeInput, async (file) => {
         currentSchemeFile = file;
@@ -259,17 +270,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         schemeTranscription.value = '';
         schemeTranscription.placeholder = 'Transcribing marking scheme...';
 
-        // Upload and transcribe immediately
+        isTranscribing = true;
+        updateCreateButton();
+
         try {
             const formData = new FormData();
             formData.append('file', file);
 
-            // We need an exam ID to upload, so we'll create a temporary placeholder
-            // Actually, we'll do the transcription client-side or defer until exam creation
-            // For now, let's just show the file is selected and transcribe during exam creation
-            // But the user wants immediate transcription, so we need a different approach
-
-            // Let's add a dedicated transcription endpoint that doesn't require an exam
             const res = await fetch('/api/transcribe-marking-scheme', {
                 method: 'POST',
                 body: formData
@@ -283,6 +290,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         } catch (err) {
             schemeTranscription.value = 'Error transcribing. You can type the marking scheme manually.';
         } finally {
+            isTranscribing = false;
+            updateCreateButton();
             schemeLoading.classList.add('hidden');
             schemeTranscription.placeholder = 'Transcribed marking scheme. You can edit it to correct any errors.';
         }
@@ -366,8 +375,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             scriptFiles.forEach(f => scriptsForm.append('files', f));
             await fetch(`/api/exams/${exam.id}/scripts`, { method: 'POST', body: scriptsForm });
 
-            progressText.textContent = 'Evaluating scripts with AI...';
-            await fetch(`/api/exams/${exam.id}/evaluate`, { method: 'POST' });
+            // Start evaluation in background (don't wait)
+            fetch(`/api/exams/${exam.id}/evaluate`, { method: 'POST' });
 
             loading.classList.add('hidden');
             window.location.href = `/exam/${exam.id}`;

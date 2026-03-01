@@ -95,7 +95,7 @@ def get_file_type(content_type: str, filename: str) -> FileType | None:
 
 
 # --- Gemini AI Functions ---
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3-flash-preview"
 
 
 def image_to_bytes(image: Image.Image) -> bytes:
@@ -215,6 +215,7 @@ def evaluate_batch(questions: list[QuestionInput], custom_prompt: str = None, ma
 
 
 def extract_and_evaluate_image(image: Image.Image, custom_prompt: str = None, scheme_text: str = None, scheme_image: Image.Image = None):
+    """Extract questions from student image and evaluate against marking scheme."""
     try:
         img_bytes = image_to_bytes(image)
         contents = [types.Part.from_bytes(data=img_bytes, mime_type="image/png")]
@@ -222,34 +223,64 @@ def extract_and_evaluate_image(image: Image.Image, custom_prompt: str = None, sc
         if scheme_image:
             contents.append(types.Part.from_bytes(data=image_to_bytes(scheme_image), mime_type="image/png"))
 
-        if custom_prompt:
-            transcript_prompt = "Transcribe all text in this image exactly as written. Return only the transcription."
-            transcript_resp = get_client().models.generate_content(model=MODEL, contents=[types.Part.from_bytes(data=img_bytes, mime_type="image/png"), transcript_prompt])
-            transcript = transcript_resp.text.strip()
-
-            eval_prompt = custom_prompt.replace("{question}", "Evaluate the student's work")
-            eval_prompt = eval_prompt.replace("{student_answer}", transcript)
-            eval_prompt = eval_prompt.replace("{correct_answer_section}", f"\nMarking Scheme:\n{scheme_text}" if scheme_text else "")
-
-            contents.append(eval_prompt)
-            response = get_client().models.generate_content(model=MODEL, contents=contents)
-            evaluation = parse_evaluation(response.text)
-            question = QuestionInput(question_text="Document Evaluation", student_answer=transcript)
-            return [question], [evaluation]
-
+        # Build evaluation prompt - always try to extract individual Q&A pairs
         prefix = "First image is student work. Second image is marking scheme. " if scheme_image else ""
-        scheme = f"\nMarking Scheme:\n{scheme_text}" if scheme_text else ""
-        prompt = f"""{prefix}Extract questions and answers from this image.{scheme}
-Respond in JSON:
-{{"questions": [{{"question_text": "...", "student_answer": "...", "correct_answer": "..."}}]}}"""
+        scheme = f"\n\nMarking Scheme:\n{scheme_text}" if scheme_text else ""
+
+        prompt = f"""{prefix}Analyze this student's exam answers and evaluate each question.
+{scheme}
+
+Instructions:
+1. Look at the student's handwritten answers
+2. Match each answer to the corresponding question in the marking scheme
+3. For each question, provide: the question text, student's answer, correct answer, whether it's correct, a score (0-100), and feedback
+
+Be thorough - extract ALL questions the student attempted to answer."""
+
+        if custom_prompt:
+            prompt += f"\n\nAdditional evaluation criteria:\n{custom_prompt}"
 
         contents.append(prompt)
-        response = get_client().models.generate_content(model=MODEL, contents=contents)
-        questions = parse_extraction(response.text)
+
+        # Use structured output for guaranteed JSON format
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question_number": {"type": "string"},
+                                "question_text": {"type": "string"},
+                                "student_answer": {"type": "string"},
+                                "correct_answer": {"type": "string"},
+                                "is_correct": {"type": "boolean"},
+                                "score": {"type": "number"},
+                                "feedback": {"type": "string"}
+                            },
+                            "required": ["question_text", "student_answer", "is_correct", "score", "feedback"]
+                        }
+                    }
+                },
+                "required": ["results"]
+            }
+        )
+        response = get_client().models.generate_content(model=MODEL, contents=contents, config=config)
+
+        # Parse the structured JSON response
+        questions, evaluations = parse_combined(response.text)
         if questions:
-            return questions, evaluate_batch(questions, None, scheme_text)
+            return questions, evaluations
+
+        # Fallback: try simple extraction
         return [], []
-    except Exception:
+    except Exception as e:
+        print(f"Error in extract_and_evaluate_image: {e}")
+        import traceback
+        traceback.print_exc()
         return [], []
 
 
@@ -260,13 +291,38 @@ def extract_and_evaluate_text(text: str, marking_scheme: str = None):
 Content:
 {text}
 
-Respond in JSON:
-{{"results": [{{"question_text": "...", "student_answer": "...", "correct_answer": "...", "is_correct": true/false, "score": 0-100, "feedback": "..."}}]}}"""
+Extract ALL questions the student attempted to answer."""
 
     try:
-        response = get_client().models.generate_content(model=MODEL, contents=prompt)
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "question_number": {"type": "string"},
+                                "question_text": {"type": "string"},
+                                "student_answer": {"type": "string"},
+                                "correct_answer": {"type": "string"},
+                                "is_correct": {"type": "boolean"},
+                                "score": {"type": "number"},
+                                "feedback": {"type": "string"}
+                            },
+                            "required": ["question_text", "student_answer", "is_correct", "score", "feedback"]
+                        }
+                    }
+                },
+                "required": ["results"]
+            }
+        )
+        response = get_client().models.generate_content(model=MODEL, contents=prompt, config=config)
         return parse_combined(response.text)
-    except Exception:
+    except Exception as e:
+        print(f"Error in extract_and_evaluate_text: {e}")
         return [], []
 
 
@@ -328,13 +384,18 @@ def parse_combined(text: str):
     try:
         if '```' in text:
             text = text.split('```')[1].split('```')[0]
-        data = json.loads(text.strip())
+            # Strip language identifier if present (e.g., 'json' or 'JSON')
+            if text.strip().lower().startswith('json'):
+                text = text.strip()[4:]
+        text = text.strip()
+        data = json.loads(text)
         questions, evaluations = [], []
         for r in data.get('results', []):
             questions.append(QuestionInput(question_text=r.get('question_text', ''), student_answer=r.get('student_answer', ''), correct_answer=r.get('correct_answer')))
             evaluations.append(GeminiEvaluation(is_correct=r.get('is_correct', False), score=float(r.get('score', 0)), feedback=r.get('feedback', '')))
         return questions, evaluations
-    except Exception:
+    except Exception as e:
+        print(f"parse_combined error: {e}, text: {text[:200] if text else 'empty'}")
         return [], []
 
 
