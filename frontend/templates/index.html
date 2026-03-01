@@ -141,31 +141,43 @@ document.addEventListener('DOMContentLoaded', async function() {
     await Promise.all([loadSubjects(), loadSeries(), loadExams(), loadPrompts()]);
 
     async function loadSubjects() {
-        const res = await fetch('/api/subjects');
-        subjects = await res.json();
-        examSubject.innerHTML = '<option value="">-- Select Subject --</option>' +
-            subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        try {
+            const res = await fetch('/api/subjects');
+            if (!res.ok) throw new Error('Failed to load subjects');
+            subjects = await res.json();
+            examSubject.innerHTML = '<option value="">-- Select Subject --</option>' +
+                subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        } catch (e) { console.error('loadSubjects error:', e); }
     }
 
     async function loadSeries() {
-        const res = await fetch('/api/series');
-        series = await res.json();
-        examSeries.innerHTML = '<option value="">-- Select Series --</option>' +
-            series.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        try {
+            const res = await fetch('/api/series');
+            if (!res.ok) throw new Error('Failed to load series');
+            series = await res.json();
+            examSeries.innerHTML = '<option value="">-- Select Series --</option>' +
+                series.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+        } catch (e) { console.error('loadSeries error:', e); }
     }
 
     async function loadExams() {
-        const res = await fetch('/api/exams');
-        exams = await res.json();
-        renderExams();
+        try {
+            const res = await fetch('/api/exams');
+            if (!res.ok) throw new Error('Failed to load exams');
+            exams = await res.json();
+            renderExams();
+        } catch (e) { console.error('loadExams error:', e); }
     }
 
     async function loadPrompts() {
-        const res = await fetch('/api/prompts/saved');
-        const data = await res.json();
-        savedPrompts = data.prompts || [];
-        presetSelect.innerHTML = '<option value="">-- Select Saved Prompt --</option>' +
-            savedPrompts.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+        try {
+            const res = await fetch('/api/prompts/saved');
+            if (!res.ok) throw new Error('Failed to load prompts');
+            const data = await res.json();
+            savedPrompts = data.prompts || [];
+            presetSelect.innerHTML = '<option value="">-- Select Saved Prompt --</option>' +
+                savedPrompts.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+        } catch (e) { console.error('loadPrompts error:', e); }
     }
 
     function renderExams() {
