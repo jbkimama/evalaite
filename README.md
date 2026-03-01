@@ -6,9 +6,23 @@ AI-powered exam evaluation system using Google Gemini. Built as a proof of conce
 
 - Evaluate student work (letters, essays, compositions, math) using AI
 - Support for PDF and image uploads
+- Automatic extraction of student name and number from booklets
 - Custom evaluation prompts saved to database
-- Batch evaluation of multiple student booklets
-- Evaluation history with scores and statistics
+- Batch evaluation with results ranked by score
+- Export results as CSV
+- Multi-user authentication with role-based access (Superadmin, Teacher)
+- Admin panel for user management
+
+## Default Users
+
+On first run, the following default users are created:
+
+| Role | Username | Password |
+|------|----------|----------|
+| Superadmin | `admin` | `admin123` |
+| Teacher | `teacher` | `teacher123` |
+
+**Important:** Change these passwords after first login!
 
 ## Quick Start
 

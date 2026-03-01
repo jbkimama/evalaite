@@ -1,11 +1,11 @@
 """
 Evalaite - Services
-Gemini AI, file parsing, and review orchestration.
+Gemini AI, file parsing, and exam evaluation logic.
 """
 import json
 import io
 import re
-import hashlib
+from datetime import datetime
 from google import genai
 from google.genai import types
 from PIL import Image
@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 import os
 from dotenv import load_dotenv
 from app.models import (
-    Review, Question, SavedPrompt, InputType, ReviewStatus,
+    Exam, Script, ScriptQuestion, FileType, ScriptStatus,
     QuestionInput, GeminiEvaluation
 )
 
@@ -81,6 +81,19 @@ def extract_questions(text: str) -> list[QuestionInput]:
     return []
 
 
+def get_file_type(content_type: str, filename: str) -> FileType | None:
+    type_map = {
+        'application/pdf': FileType.PDF,
+        'image/png': FileType.IMAGE, 'image/jpeg': FileType.IMAGE, 'image/jpg': FileType.IMAGE,
+        'text/plain': FileType.TEXT
+    }
+    if content_type in type_map:
+        return type_map[content_type]
+    ext = filename.lower().split('.')[-1] if filename else ''
+    ext_map = {'pdf': FileType.PDF, 'png': FileType.IMAGE, 'jpg': FileType.IMAGE, 'jpeg': FileType.IMAGE, 'txt': FileType.TEXT}
+    return ext_map.get(ext)
+
+
 # --- Gemini AI Functions ---
 MODEL = "gemini-2.5-flash"
 
@@ -89,6 +102,89 @@ def image_to_bytes(image: Image.Image) -> bytes:
     buf = io.BytesIO()
     image.save(buf, format='PNG')
     return buf.getvalue()
+
+
+def transcribe_marking_scheme(file_data: bytes, file_type: FileType) -> str:
+    """Transcribe marking scheme from PDF or image using Gemini AI."""
+    prompt = """Transcribe this marking scheme document completely and accurately.
+
+Extract ALL questions, answers, and point allocations exactly as they appear.
+Format the output clearly with:
+- Question numbers
+- Expected answers or answer guidelines
+- Point values for each question/part
+
+Be thorough and include every detail from the marking scheme.
+If there are multiple acceptable answers, include all of them.
+Preserve the structure (e.g., Question 1a, 1b, 2a, etc.)
+
+Output the transcription in a clean, readable format."""
+
+    try:
+        if file_type == FileType.PDF:
+            if is_scanned_pdf(file_data):
+                images = pdf_to_images(file_data)
+                contents = [prompt]
+                for img in images:
+                    contents.append(types.Part.from_bytes(data=image_to_bytes(img), mime_type="image/png"))
+            else:
+                text, _ = parse_pdf(file_data)
+                contents = f"{prompt}\n\nDocument content:\n{text}"
+        else:  # Image
+            img = parse_image(file_data)
+            contents = [
+                prompt,
+                types.Part.from_bytes(data=image_to_bytes(img), mime_type="image/png")
+            ]
+
+        response = get_client().models.generate_content(model=MODEL, contents=contents)
+        return response.text.strip()
+    except Exception as e:
+        return f"Error transcribing marking scheme: {str(e)}"
+
+
+def extract_student_info(content, content_type: str) -> dict:
+    """Extract student name and number from answer booklet using Gemini."""
+    try:
+        prompt = """Look at this document and extract the student's information.
+Find the student name and student number/ID if present.
+
+Respond in JSON format:
+{"student_name": "name or null", "student_number": "number or null"}
+
+Only return the JSON, nothing else."""
+
+        if content_type == 'image':
+            img_bytes = image_to_bytes(content) if isinstance(content, Image.Image) else content
+            contents = [
+                types.Part.from_bytes(data=img_bytes, mime_type="image/png"),
+                prompt
+            ]
+        elif content_type == 'images':
+            img_bytes = image_to_bytes(content[0]) if content else None
+            if not img_bytes:
+                return {"student_name": None, "student_number": None}
+            contents = [
+                types.Part.from_bytes(data=img_bytes, mime_type="image/png"),
+                prompt
+            ]
+        else:
+            contents = f"{prompt}\n\nDocument content:\n{content[:2000]}"
+
+        response = get_client().models.generate_content(model=MODEL, contents=contents)
+        text = response.text.strip()
+
+        if '```' in text:
+            text = text.split('```')[1].split('```')[0]
+            if text.startswith('json'):
+                text = text[4:]
+        data = json.loads(text.strip())
+        return {
+            "student_name": data.get("student_name") if data.get("student_name") not in [None, "null", ""] else None,
+            "student_number": data.get("student_number") if data.get("student_number") not in [None, "null", ""] else None
+        }
+    except Exception:
+        return {"student_name": None, "student_number": None}
 
 
 def evaluate_answer(question: QuestionInput, custom_prompt: str = None, marking_scheme: str = None) -> GeminiEvaluation:
@@ -242,120 +338,135 @@ def parse_combined(text: str):
         return [], []
 
 
-# --- Reviewer Service ---
-class ReviewerService:
+# --- Exam Service ---
+class ExamService:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_review_from_pdf(self, content: bytes, filename: str, custom_prompt: str = None, marking_scheme=None) -> Review:
-        review = self._create_review(InputType.PDF, content, filename)
-        try:
-            scheme_text, scheme_image = self._get_scheme(marking_scheme)
-            if is_scanned_pdf(content):
-                self._process_images(review, pdf_to_images(content), custom_prompt, scheme_text, scheme_image)
-            else:
-                raw_text, questions = parse_pdf(content)
-                self._process_text(review, raw_text, questions, custom_prompt, scheme_text)
-            self._finalize(review)
-        except Exception as e:
-            review.status = ReviewStatus.FAILED
-            review.error_message = str(e)
-            self.db.commit()
-        return review
-
-    def create_review_from_image(self, content: bytes, filename: str, custom_prompt: str = None, marking_scheme=None) -> Review:
-        review = self._create_review(InputType.IMAGE, content, filename)
-        try:
-            scheme_text, scheme_image = self._get_scheme(marking_scheme)
-            self._process_images(review, [parse_image(content)], custom_prompt, scheme_text, scheme_image)
-            self._finalize(review)
-        except Exception as e:
-            review.status = ReviewStatus.FAILED
-            review.error_message = str(e)
-            self.db.commit()
-        return review
-
-    def create_review_from_text(self, content: str, custom_prompt: str = None, marking_scheme=None) -> Review:
-        review = self._create_review(InputType.TEXT, content.encode())
-        try:
-            scheme_text = self._get_scheme(marking_scheme)[0] if marking_scheme else None
-            if custom_prompt:
-                q = QuestionInput(question_text="Document Evaluation", student_answer=content)
-                e = evaluate_answer(q, custom_prompt, scheme_text)
-                self._save_results(review, [q], [e])
-            else:
-                raw_text, parsed = content, extract_questions(content)
-                self._process_text(review, raw_text, parsed, custom_prompt, scheme_text)
-            self._finalize(review)
-        except Exception as e:
-            review.status = ReviewStatus.FAILED
-            review.error_message = str(e)
-            self.db.commit()
-        return review
-
-    def get_review(self, review_id: int) -> Review:
-        return self.db.query(Review).filter(Review.id == review_id).first()
-
-    def get_reviews(self, skip: int = 0, limit: int = 100) -> list[Review]:
-        return self.db.query(Review).order_by(Review.created_at.desc()).offset(skip).limit(limit).all()
-
-    def _create_review(self, input_type: InputType, content: bytes, filename: str = None) -> Review:
-        review = Review(input_type=input_type, original_filename=filename, content_hash=hashlib.sha256(content).hexdigest(), status=ReviewStatus.PROCESSING)
-        self.db.add(review)
-        self.db.commit()
-        self.db.refresh(review)
-        return review
-
-    def _get_scheme(self, scheme):
-        if not scheme:
+    def get_scheme_content(self, exam: Exam) -> tuple[str | None, Image.Image | None]:
+        """Get marking scheme content from exam."""
+        if not exam.marking_scheme_data:
             return None, None
-        data, stype = scheme
+
         text, image = None, None
-        if stype == 'pdf':
-            text, _ = parse_pdf(data)
-            if is_scanned_pdf(data):
-                imgs = pdf_to_images(data)
+        if exam.marking_scheme_type == FileType.PDF:
+            text, _ = parse_pdf(exam.marking_scheme_data)
+            if is_scanned_pdf(exam.marking_scheme_data):
+                imgs = pdf_to_images(exam.marking_scheme_data)
                 image = imgs[0] if imgs else None
-        elif stype == 'image':
-            image = parse_image(data)
-        elif stype == 'text':
-            text = data.decode('utf-8')
+        elif exam.marking_scheme_type == FileType.IMAGE:
+            image = parse_image(exam.marking_scheme_data)
+        elif exam.marking_scheme_type == FileType.TEXT:
+            text = exam.marking_scheme_data.decode('utf-8')
         return text, image
 
-    def _process_images(self, review, images, prompt, scheme_text, scheme_image):
+    def evaluate_script(self, script: Script) -> Script:
+        """Evaluate a single script."""
+        exam = script.exam
+        script.status = ScriptStatus.PROCESSING
+        self.db.commit()
+
+        try:
+            scheme_text, scheme_image = self.get_scheme_content(exam)
+            custom_prompt = exam.evaluation_prompt
+
+            # Parse script content based on type
+            if script.file_type == FileType.PDF:
+                if is_scanned_pdf(script.file_data):
+                    images = pdf_to_images(script.file_data)
+                    # Extract student info
+                    if images:
+                        student_info = extract_student_info(images, 'images')
+                        script.student_name = student_info.get("student_name")
+                        script.student_number = student_info.get("student_number")
+                    self._process_images(script, images, custom_prompt, scheme_text, scheme_image)
+                else:
+                    raw_text, questions = parse_pdf(script.file_data)
+                    student_info = extract_student_info(raw_text, 'text')
+                    script.student_name = student_info.get("student_name")
+                    script.student_number = student_info.get("student_number")
+                    self._process_text(script, raw_text, questions, custom_prompt, scheme_text)
+
+            elif script.file_type == FileType.IMAGE:
+                image = parse_image(script.file_data)
+                student_info = extract_student_info(image, 'image')
+                script.student_name = student_info.get("student_name")
+                script.student_number = student_info.get("student_number")
+                self._process_images(script, [image], custom_prompt, scheme_text, scheme_image)
+
+            elif script.file_type == FileType.TEXT:
+                content = script.file_data.decode('utf-8')
+                student_info = extract_student_info(content, 'text')
+                script.student_name = student_info.get("student_name")
+                script.student_number = student_info.get("student_number")
+                if custom_prompt:
+                    q = QuestionInput(question_text="Document Evaluation", student_answer=content)
+                    e = evaluate_answer(q, custom_prompt, scheme_text)
+                    self._save_results(script, [q], [e])
+                else:
+                    raw_text, parsed = content, extract_questions(content)
+                    self._process_text(script, raw_text, parsed, custom_prompt, scheme_text)
+
+            self._finalize(script)
+
+        except Exception as e:
+            script.status = ScriptStatus.FAILED
+            script.error_message = str(e)
+            self.db.commit()
+
+        return script
+
+    def _process_images(self, script, images, prompt, scheme_text, scheme_image):
         all_q, all_e = [], []
         for img in images:
             q, e = extract_and_evaluate_image(img, prompt, scheme_text, scheme_image)
             all_q.extend(q)
             all_e.extend(e)
         if all_q:
-            self._save_results(review, all_q, all_e)
+            self._save_results(script, all_q, all_e)
         else:
-            review.error_message = "Could not extract content from image"
+            script.error_message = "Could not extract content from image"
 
-    def _process_text(self, review, raw_text, parsed, prompt, scheme_text):
+    def _process_text(self, script, raw_text, parsed, prompt, scheme_text):
         if parsed:
-            self._save_results(review, parsed, evaluate_batch(parsed, prompt, scheme_text))
+            self._save_results(script, parsed, evaluate_batch(parsed, prompt, scheme_text))
         else:
             q, e = extract_and_evaluate_text(raw_text, scheme_text)
             if q:
-                self._save_results(review, q, e)
+                self._save_results(script, q, e)
             else:
-                review.error_message = "Could not extract questions from text"
+                script.error_message = "Could not extract questions from text"
 
-    def _save_results(self, review, questions, evaluations):
+    def _save_results(self, script, questions, evaluations):
         for i, (q, e) in enumerate(zip(questions, evaluations), 1):
-            self.db.add(Question(review_id=review.id, question_number=i, question_text=q.question_text, student_answer=q.student_answer, correct_answer=q.correct_answer, is_correct=e.is_correct, score=e.score, feedback=e.feedback))
+            self.db.add(ScriptQuestion(
+                script_id=script.id,
+                question_number=i,
+                question_text=q.question_text,
+                student_answer=q.student_answer,
+                correct_answer=q.correct_answer,
+                is_correct=e.is_correct,
+                score=e.score,
+                feedback=e.feedback
+            ))
         self.db.commit()
 
-    def _finalize(self, review):
-        self.db.refresh(review)
-        if review.questions:
-            review.total_questions = len(review.questions)
-            review.correct_answers = sum(1 for q in review.questions if q.is_correct)
-            review.total_score = sum(q.score or 0 for q in review.questions) / review.total_questions
-            review.status = ReviewStatus.COMPLETED
+    def _finalize(self, script):
+        self.db.refresh(script)
+        if script.questions:
+            script.total_questions = len(script.questions)
+            script.correct_answers = sum(1 for q in script.questions if q.is_correct)
+            script.total_score = sum(q.score or 0 for q in script.questions) / script.total_questions
+            script.status = ScriptStatus.COMPLETED
         else:
-            review.status = ReviewStatus.FAILED
-            review.error_message = review.error_message or "No questions evaluated"
+            script.status = ScriptStatus.FAILED
+            script.error_message = script.error_message or "No questions evaluated"
+        script.evaluated_at = datetime.utcnow()
         self.db.commit()
+
+    def evaluate_all_scripts(self, exam: Exam) -> list[Script]:
+        """Evaluate all pending scripts for an exam."""
+        pending_scripts = [s for s in exam.scripts if s.status == ScriptStatus.PENDING]
+        for script in pending_scripts:
+            self.evaluate_script(script)
+        return pending_scripts

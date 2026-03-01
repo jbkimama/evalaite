@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}Exam Details - Evalaite{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="breadcrumb">
+        <a href="/">Dashboard</a> / <span id="exam-title">Exam</span>
+    </div>
+
+    <div id="exam-info" class="exam-info-card"></div>
+
+    <div class="exam-actions-bar">
+        <button class="btn btn-primary" id="evaluate-btn">Evaluate All Scripts</button>
+        <button class="btn btn-secondary" id="export-btn">Export CSV</button>
+        <button class="btn" id="upload-more-btn">Add More Scripts</button>
+    </div>
+
+    <div id="upload-section" class="upload-section hidden">
+        <div class="file-upload" id="scripts-dropzone">
+            <input type="file" id="scripts-input" accept=".pdf,.png,.jpg,.jpeg" multiple hidden>
+            <div class="file-upload-content">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                </svg>
+                <span>Upload additional scripts (multiple allowed)</span>
+            </div>
+        </div>
+        <div id="pending-files" class="files-list"></div>
+        <button class="btn btn-primary" id="upload-scripts-btn" disabled>Upload Scripts</button>
+    </div>
+
+    <div id="loading" class="loading hidden">
+        <div class="spinner"></div>
+        <p id="progress-text">Processing...</p>
+    </div>
+
+    <div class="scripts-section">
+        <h2>Student Scripts <span id="scripts-count"></span></h2>
+        <div id="scripts-list" class="scripts-table-container"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    const examId = {{ exam_id }};
+    let exam = null;
+    let scripts = [];
+    let pendingFiles = [];
+
+    // DOM elements
+    const examInfo = document.getElementById('exam-info');
+    const examTitle = document.getElementById('exam-title');
+    const scriptsCount = document.getElementById('scripts-count');
+    const scriptsList = document.getElementById('scripts-list');
+    const evaluateBtn = document.getElementById('evaluate-btn');
+    const exportBtn = document.getElementById('export-btn');
+    const uploadMoreBtn = document.getElementById('upload-more-btn');
+    const uploadSection = document.getElementById('upload-section');
+    const scriptsDropzone = document.getElementById('scripts-dropzone');
+    const scriptsInput = document.getElementById('scripts-input');
+    const pendingFilesList = document.getElementById('pending-files');
+    const uploadScriptsBtn = document.getElementById('upload-scripts-btn');
+    const loading = document.getElementById('loading');
+    const progressText = document.getElementById('progress-text');
+
+    await loadExam();
+    await loadScripts();
+
+    async function loadExam() {
+        try {
+            const res = await fetch(`/api/exams/${examId}`);
+            if (!res.ok) {
+                window.location.href = '/';
+                return;
+            }
+            exam = await res.json();
+            renderExamInfo();
+        } catch (err) {
+            console.error('Failed to load exam:', err);
+        }
+    }
+
+    async function loadScripts() {
+        try {
+            const res = await fetch(`/api/exams/${examId}/scripts`);
+            scripts = await res.json();
+            renderScripts();
+        } catch (err) {
+            console.error('Failed to load scripts:', err);
+        }
+    }
+
+    function renderExamInfo() {
+        examTitle.textContent = `${exam.subject_name} - ${exam.series_name}`;
+
+        const avgScore = exam.average_score !== null ? exam.average_score.toFixed(1) : '-';
+        const hasScheme = exam.has_marking_scheme ? 'Yes' : 'No';
+
+        examInfo.innerHTML = `
+            <div class="exam-info-header">
+                <h1>${exam.subject_name}</h1>
+                <span class="exam-series-badge">${exam.series_name}</span>
+            </div>
+            <div class="exam-stats-grid">
+                <div class="stat-item">
+                    <span class="stat-label">Total Scripts</span>
+                    <span class="stat-value">${exam.script_count}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Evaluated</span>
+                    <span class="stat-value">${exam.evaluated_count}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Average Score</span>
+                    <span class="stat-value ${avgScore !== '-' ? 'score' : ''}">${avgScore}${avgScore !== '-' ? '%' : ''}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Marking Scheme</span>
+                    <span class="stat-value">${hasScheme}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderScripts() {
+        scriptsCount.textContent = `(${scripts.length})`;
+
+        if (scripts.length === 0) {
+            scriptsList.innerHTML = '<p class="empty-text">No scripts uploaded yet.</p>';
+            return;
+        }
+
+        scriptsList.innerHTML = `
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Student</th>
+                        <th>Filename</th>
+                        <th>Score</th>
+                        <th>Questions</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${scripts.map((s, i) => {
+                        const studentDisplay = s.student_name
+                            ? `${s.student_name}${s.student_number ? ' (' + s.student_number + ')' : ''}`
+                            : '-';
+                        const scoreClass = s.total_score >= 70 ? 'score-good' : s.total_score >= 50 ? 'score-ok' : 'score-bad';
+                        const statusClass = s.status === 'completed' ? 'status-completed' :
+                                           s.status === 'failed' ? 'status-failed' : 'status-pending';
+
+                        return `<tr>
+                            <td>${s.status === 'completed' ? i + 1 : '-'}</td>
+                            <td>${studentDisplay}</td>
+                            <td title="${s.filename}">${s.filename ? s.filename.substring(0, 30) + (s.filename.length > 30 ? '...' : '') : '-'}</td>
+                            <td class="${s.status === 'completed' ? scoreClass : ''}" style="font-weight: 600;">
+                                ${s.total_score !== null ? s.total_score.toFixed(1) + '%' : '-'}
+                            </td>
+                            <td>${s.correct_answers}/${s.total_questions}</td>
+                            <td><span class="status-badge ${statusClass}">${s.status}</span></td>
+                            <td>
+                                ${s.status === 'completed' ? `
+                                    <a href="#" onclick="viewScript(${s.id}); return false;" class="btn-link">View</a>
+                                    <a href="/api/scripts/${s.id}/export/csv" class="btn-link">CSV</a>
+                                ` : s.status === 'pending' ? `
+                                    <button onclick="evaluateScript(${s.id})" class="btn-link">Evaluate</button>
+                                ` : `
+                                    <span class="error-text" title="${s.error_message || ''}">Error</span>
+                                `}
+                                <button onclick="deleteScript(${s.id})" class="btn-link btn-delete">Delete</button>
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        `;
+    }
+
+    // View script details (modal)
+    window.viewScript = async (scriptId) => {
+        try {
+            const res = await fetch(`/api/scripts/${scriptId}`);
+            const script = await res.json();
+
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>${script.student_name || script.filename || 'Script Details'}</h2>
+                        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="script-summary">
+                            <span><strong>Score:</strong> ${script.total_score?.toFixed(1) || 0}%</span>
+                            <span><strong>Correct:</strong> ${script.correct_answers}/${script.total_questions}</span>
+                            ${script.student_number ? `<span><strong>Student #:</strong> ${script.student_number}</span>` : ''}
+                        </div>
+                        <h3>Question Details</h3>
+                        <div class="questions-list">
+                            ${script.questions.map(q => `
+                                <div class="question-item ${q.is_correct ? 'correct' : 'incorrect'}">
+                                    <div class="question-header">
+                                        <span class="question-number">Q${q.question_number}</span>
+                                        <span class="question-score">${q.score?.toFixed(1) || 0}%</span>
+                                        <span class="question-status">${q.is_correct ? 'Correct' : 'Incorrect'}</span>
+                                    </div>
+                                    <div class="question-content">
+                                        <p><strong>Question:</strong> ${q.question_text}</p>
+                                        <p><strong>Student Answer:</strong> ${q.student_answer}</p>
+                                        ${q.correct_answer ? `<p><strong>Correct Answer:</strong> ${q.correct_answer}</p>` : ''}
+                                        <p><strong>Feedback:</strong> ${q.feedback || 'No feedback'}</p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        } catch (err) {
+            alert('Failed to load script details');
+        }
+    };
+
+    // Evaluate single script
+    window.evaluateScript = async (scriptId) => {
+        try {
+            loading.classList.remove('hidden');
+            progressText.textContent = 'Evaluating script...';
+            await fetch(`/api/scripts/${scriptId}/evaluate`, { method: 'POST' });
+            await loadScripts();
+            loading.classList.add('hidden');
+        } catch (err) {
+            alert('Failed to evaluate script');
+            loading.classList.add('hidden');
+        }
+    };
+
+    // Delete script
+    window.deleteScript = async (scriptId) => {
+        if (!confirm('Delete this script?')) return;
+        try {
+            await fetch(`/api/scripts/${scriptId}`, { method: 'DELETE' });
+            await loadScripts();
+            await loadExam();
+        } catch (err) {
+            alert('Failed to delete script');
+        }
+    };
+
+    // Evaluate all pending scripts
+    evaluateBtn.addEventListener('click', async () => {
+        const pending = scripts.filter(s => s.status === 'pending');
+        if (pending.length === 0) {
+            alert('No pending scripts to evaluate');
+            return;
+        }
+
+        loading.classList.remove('hidden');
+        progressText.textContent = `Evaluating ${pending.length} scripts...`;
+
+        try {
+            await fetch(`/api/exams/${examId}/evaluate`, { method: 'POST' });
+            await loadScripts();
+            await loadExam();
+        } catch (err) {
+            alert('Evaluation failed');
+        }
+
+        loading.classList.add('hidden');
+    });
+
+    // Export CSV
+    exportBtn.addEventListener('click', () => {
+        window.location.href = `/api/exams/${examId}/export/csv`;
+    });
+
+    // Upload more scripts
+    uploadMoreBtn.addEventListener('click', () => {
+        uploadSection.classList.toggle('hidden');
+    });
+
+    // File dropzone
+    scriptsDropzone.addEventListener('click', () => scriptsInput.click());
+    scriptsDropzone.addEventListener('dragover', (e) => { e.preventDefault(); scriptsDropzone.classList.add('dragover'); });
+    scriptsDropzone.addEventListener('dragleave', () => scriptsDropzone.classList.remove('dragover'));
+    scriptsDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        scriptsDropzone.classList.remove('dragover');
+        addFiles(Array.from(e.dataTransfer.files));
+    });
+    scriptsInput.addEventListener('change', () => addFiles(Array.from(scriptsInput.files)));
+
+    function addFiles(files) {
+        for (const file of files) {
+            if (!pendingFiles.find(f => f.name === file.name)) {
+                pendingFiles.push(file);
+            }
+        }
+        renderPendingFiles();
+    }
+
+    function renderPendingFiles() {
+        pendingFilesList.innerHTML = pendingFiles.map((f, i) => `
+            <div class="file-item">
+                <span>${f.name}</span>
+                <button type="button" class="btn-link" onclick="removePendingFile(${i})">Remove</button>
+            </div>
+        `).join('');
+        uploadScriptsBtn.disabled = pendingFiles.length === 0;
+    }
+
+    window.removePendingFile = (index) => {
+        pendingFiles.splice(index, 1);
+        renderPendingFiles();
+    };
+
+    uploadScriptsBtn.addEventListener('click', async () => {
+        if (pendingFiles.length === 0) return;
+
+        loading.classList.remove('hidden');
+        progressText.textContent = 'Uploading scripts...';
+
+        try {
+            const formData = new FormData();
+            pendingFiles.forEach(f => formData.append('files', f));
+            await fetch(`/api/exams/${examId}/scripts`, {
+                method: 'POST',
+                body: formData
+            });
+
+            pendingFiles = [];
+            renderPendingFiles();
+            uploadSection.classList.add('hidden');
+
+            await loadScripts();
+            await loadExam();
+        } catch (err) {
+            alert('Failed to upload scripts');
+        }
+
+        loading.classList.add('hidden');
+    });
+});
+</script>
+{% endblock %}

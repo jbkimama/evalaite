@@ -13,8 +13,8 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 
-# Database
-*.db
+# Database (keeping evalaite.db for initial data)
+# *.db
 
 # IDE
 .idea/
@@ -31,3 +31,4 @@ Thumbs.db
 
 # UV
 .uv/
+*.db

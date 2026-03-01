@@ -11,8 +11,20 @@
     <header>
         <nav>
             <a href="/" class="logo">Evalaite</a>
-            <a href="/">Home</a>
-            <a href="/history">History</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/results">Results</a>
+            </div>
+            <div class="nav-user">
+                {% if user %}
+                {% if user.role.value == 'superadmin' %}
+                <a href="/admin" class="btn btn-secondary btn-small">Admin</a>
+                {% else %}
+                <span class="user-name">{{ user.username }}</span>
+                {% endif %}
+                <a href="/logout" class="btn btn-secondary btn-small">Logout</a>
+                {% endif %}
+            </div>
         </nav>
     </header>
 

@@ -1,192 +1,199 @@
 {% extends "base.html" %}
 
-{% block title %}Results - Evalaite{% endblock %}
+{% block title %}All Results - Evalaite{% endblock %}
 
 {% block content %}
 <div class="container">
+    <div class="results-header">
+        <h1>All Exam Results</h1>
+    </div>
+
     <div id="loading" class="loading">
         <div class="spinner"></div>
         <p>Loading results...</p>
     </div>
 
-    <div id="results" class="hidden">
-        <div class="results-header">
-            <h1>Review Results</h1>
-            <div style="display: flex; gap: 0.5rem;">
-                <a href="/api/reviews/{{ review_id }}/export/csv" class="btn btn-secondary">Export CSV</a>
-                <a href="/" class="btn btn-secondary">New Review</a>
-            </div>
-        </div>
-
-        <div class="summary-card" id="summary-card">
+    <div id="results-content" class="hidden">
+        <div id="summary-stats" class="summary-card" style="margin-bottom: 1.5rem;">
             <div class="summary-item">
-                <span class="label">Status</span>
-                <span id="status" class="status"></span>
+                <span class="label">Total Exams</span>
+                <span id="total-exams" class="score">0</span>
             </div>
             <div class="summary-item">
-                <span class="label">Overall Score</span>
-                <span id="score" class="score"></span>
+                <span class="label">Total Scripts</span>
+                <span id="total-scripts" class="score">0</span>
             </div>
-            <div class="summary-item" id="correct-section">
-                <span class="label">Correct Answers</span>
-                <span id="correct"></span>
+            <div class="summary-item">
+                <span class="label">Evaluated</span>
+                <span id="evaluated-scripts" class="score score-good">0</span>
             </div>
-            <div class="summary-item" id="total-section">
-                <span class="label">Total Questions</span>
-                <span id="total"></span>
+            <div class="summary-item">
+                <span class="label">Average Score</span>
+                <span id="avg-score" class="score">-</span>
             </div>
         </div>
 
-        <div id="filename-display" class="hidden" style="margin-bottom: 1rem; color: #6b7280;">
-            <strong>File:</strong> <span id="filename"></span>
+        <div id="results-table-container" class="main-form">
+            <h2 style="margin-bottom: 1rem;">Exams by Series</h2>
+            <div id="exams-by-series"></div>
         </div>
 
-        <div id="error-message" class="error hidden"></div>
-
-        <div id="questions-section">
-            <h2>Evaluation Details</h2>
-            <div id="questions-list"></div>
+        <div id="no-results" class="hidden" style="text-align: center; padding: 2rem; color: var(--gray-500);">
+            <p>No exams yet. <a href="/">Create your first exam</a></p>
         </div>
     </div>
 </div>
+
+<style>
+.results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.results-header h1 {
+    margin-bottom: 0;
+}
+.series-group {
+    margin-bottom: 1.5rem;
+}
+.series-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: var(--gray-100);
+    border-radius: 0.5rem 0.5rem 0 0;
+    border-bottom: 1px solid var(--gray-200);
+}
+.series-header h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+.exam-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+.exam-row:last-child {
+    border-bottom: none;
+}
+.exam-row:hover {
+    background: var(--gray-50);
+}
+.exam-info {
+    flex: 1;
+}
+.exam-info h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 0.95rem;
+}
+.exam-meta {
+    font-size: 0.85rem;
+    color: var(--gray-500);
+}
+.exam-stats-inline {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+.exam-stats-inline span {
+    font-size: 0.9rem;
+}
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', async function() {
-    const reviewId = {{ review_id }};
     const loading = document.getElementById('loading');
-    const results = document.getElementById('results');
+    const resultsContent = document.getElementById('results-content');
+    const examsBySeries = document.getElementById('exams-by-series');
+    const noResults = document.getElementById('no-results');
 
     try {
-        const response = await fetch(`/api/reviews/${reviewId}`);
+        const [examsRes, seriesRes] = await Promise.all([
+            fetch('/api/exams'),
+            fetch('/api/series')
+        ]);
+        const exams = await examsRes.json();
+        const series = await seriesRes.json();
 
-        if (!response.ok) {
-            throw new Error('Review not found');
+        loading.classList.add('hidden');
+        resultsContent.classList.remove('hidden');
+
+        if (exams.length === 0) {
+            document.getElementById('results-table-container').classList.add('hidden');
+            noResults.classList.remove('hidden');
+            return;
         }
 
-        const data = await response.json();
-        displayResults(data);
+        // Calculate stats
+        const totalScripts = exams.reduce((sum, e) => sum + e.script_count, 0);
+        const totalEvaluated = exams.reduce((sum, e) => sum + e.evaluated_count, 0);
+        const scoresSum = exams.reduce((sum, e) => sum + (e.average_score || 0) * e.evaluated_count, 0);
+        const avgScore = totalEvaluated > 0 ? scoresSum / totalEvaluated : null;
+
+        document.getElementById('total-exams').textContent = exams.length;
+        document.getElementById('total-scripts').textContent = totalScripts;
+        document.getElementById('evaluated-scripts').textContent = totalEvaluated;
+        document.getElementById('avg-score').textContent = avgScore !== null ? avgScore.toFixed(1) + '%' : '-';
+        if (avgScore !== null) {
+            document.getElementById('avg-score').className = `score ${avgScore >= 70 ? 'score-good' : avgScore >= 50 ? 'score-ok' : 'score-bad'}`;
+        }
+
+        // Group exams by series
+        const seriesMap = {};
+        series.forEach(s => { seriesMap[s.id] = s.name; });
+
+        const grouped = {};
+        exams.forEach(e => {
+            const seriesName = e.series_name || 'No Series';
+            if (!grouped[seriesName]) grouped[seriesName] = [];
+            grouped[seriesName].push(e);
+        });
+
+        // Render
+        let html = '';
+        for (const [seriesName, seriesExams] of Object.entries(grouped)) {
+            html += `
+                <div class="series-group">
+                    <div class="series-header">
+                        <h3>${seriesName}</h3>
+                        <span>${seriesExams.length} exam(s)</span>
+                    </div>
+                    ${seriesExams.map(e => {
+                        const scoreClass = e.average_score >= 70 ? 'score-good' : e.average_score >= 50 ? 'score-ok' : 'score-bad';
+                        return `
+                            <div class="exam-row">
+                                <div class="exam-info">
+                                    <h4>${e.subject_name}</h4>
+                                    <span class="exam-meta">
+                                        ${e.script_count} scripts, ${e.evaluated_count} evaluated
+                                    </span>
+                                </div>
+                                <div class="exam-stats-inline">
+                                    ${e.average_score !== null ? `<span class="score ${scoreClass}">${e.average_score.toFixed(1)}%</span>` : '<span>-</span>'}
+                                    <a href="/exam/${e.id}" class="btn btn-small">View</a>
+                                    <button class="btn btn-secondary btn-small" onclick="exportExam(${e.id})">CSV</button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        examsBySeries.innerHTML = html;
 
     } catch (err) {
-        loading.innerHTML = `<p class="error">Error: ${err.message}</p>`;
+        loading.innerHTML = `<p class="error">Error loading results: ${err.message}</p>`;
     }
 
-    function displayResults(data) {
-        loading.classList.add('hidden');
-        results.classList.remove('hidden');
-
-        // Check if this is a document evaluation
-        const isDocumentEval = data.questions && data.questions.length === 1 &&
-                               data.questions[0].question_text === 'Document Evaluation';
-
-        // Show filename if available
-        if (data.original_filename) {
-            document.getElementById('filename').textContent = data.original_filename;
-            document.getElementById('filename-display').classList.remove('hidden');
-        }
-
-        // Status
-        const statusEl = document.getElementById('status');
-        statusEl.textContent = data.status;
-        statusEl.className = `status status-${data.status}`;
-
-        // Score - show as percentage
-        const scoreEl = document.getElementById('score');
-        if (data.total_score !== null) {
-            scoreEl.textContent = `${data.total_score.toFixed(1)}%`;
-            scoreEl.className = `score ${data.total_score >= 70 ? 'score-good' : data.total_score >= 50 ? 'score-ok' : 'score-bad'}`;
-        } else {
-            scoreEl.textContent = 'N/A';
-        }
-
-        // Hide correct/total for document evaluations
-        if (isDocumentEval) {
-            document.getElementById('correct-section').style.display = 'none';
-            document.getElementById('total-section').style.display = 'none';
-        } else {
-            document.getElementById('correct').textContent = data.correct_answers;
-            document.getElementById('total').textContent = data.total_questions;
-        }
-
-        // Error message
-        if (data.error_message) {
-            const errorEl = document.getElementById('error-message');
-            errorEl.textContent = data.error_message;
-            errorEl.classList.remove('hidden');
-        }
-
-        // Questions/Evaluations
-        const questionsList = document.getElementById('questions-list');
-
-        if (data.questions && data.questions.length > 0) {
-            // Check if this is a document evaluation (letter, essay, etc.)
-            const isDocumentEval = data.questions.length === 1 && data.questions[0].question_text === 'Document Evaluation';
-
-            if (isDocumentEval) {
-                const q = data.questions[0];
-                questionsList.innerHTML = `
-                    <div class="question-card">
-                        <div class="question-header">
-                            <span class="question-number">Score: ${q.score?.toFixed(1) || 0}%</span>
-                            <span class="question-result ${q.score >= 50 ? 'result-correct' : 'result-incorrect'}">
-                                ${q.score >= 50 ? 'Pass' : 'Needs Improvement'}
-                            </span>
-                        </div>
-                        <div class="question-body">
-                            <div class="question-row">
-                                <strong>Student's Work (Transcript):</strong>
-                                <p style="white-space: pre-wrap; background: #f9fafb; padding: 1rem; border-radius: 0.5rem; font-family: inherit;">${escapeHtml(q.student_answer)}</p>
-                            </div>
-                            <div class="question-row feedback" style="margin-top: 1rem;">
-                                <strong>Evaluation Report:</strong>
-                                <p style="white-space: pre-wrap;">${escapeHtml(q.feedback || 'No feedback provided')}</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            } else {
-                questionsList.innerHTML = data.questions.map(q => `
-                    <div class="question-card ${q.is_correct ? 'correct' : 'incorrect'}">
-                        <div class="question-header">
-                            <span class="question-number">Question ${q.question_number}</span>
-                            <span class="question-result ${q.is_correct ? 'result-correct' : 'result-incorrect'}">
-                                ${q.is_correct ? 'Correct' : 'Incorrect'} - ${q.score?.toFixed(0) || 0}%
-                            </span>
-                        </div>
-                        <div class="question-body">
-                            <div class="question-row">
-                                <strong>Question:</strong>
-                                <p>${escapeHtml(q.question_text)}</p>
-                            </div>
-                            <div class="question-row">
-                                <strong>Student Answer:</strong>
-                                <p>${escapeHtml(q.student_answer)}</p>
-                            </div>
-                            ${q.correct_answer ? `
-                            <div class="question-row">
-                                <strong>Correct Answer:</strong>
-                                <p>${escapeHtml(q.correct_answer)}</p>
-                            </div>
-                            ` : ''}
-                            <div class="question-row feedback">
-                                <strong>Feedback:</strong>
-                                <p>${escapeHtml(q.feedback || 'No feedback provided')}</p>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            }
-        } else {
-            questionsList.innerHTML = '<p class="no-questions">No evaluation results found.</p>';
-        }
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+    window.exportExam = (examId) => {
+        window.location.href = `/api/exams/${examId}/export/csv`;
+    };
 });
 </script>
 {% endblock %}

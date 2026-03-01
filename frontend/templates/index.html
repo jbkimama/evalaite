@@ -1,87 +1,114 @@
 {% extends "base.html" %}
 
-{% block title %}Evalaite{% endblock %}
+{% block title %}Evalaite - Dashboard{% endblock %}
 
 {% block content %}
 <div class="container">
-    <h1>Evalaite</h1>
+    <div class="page-header">
+        <h1>Dashboard</h1>
+        <a href="/results" class="btn btn-secondary">View All Results</a>
+    </div>
 
-    <div class="main-form">
-        <!-- Prompt Section -->
-        <div class="form-section">
-            <label for="preset-select">Evaluation Prompt</label>
-            <div class="preset-row">
-                <select id="preset-select" class="preset-select">
-                    <option value="">-- Select Prompt --</option>
+    <!-- Create Exam Section -->
+    <div class="card">
+        <h2>Create New Exam</h2>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="exam-series">Exam Series</label>
+                <select id="exam-series" class="form-control">
+                    <option value="">-- Select Series --</option>
                 </select>
-                <button type="button" class="btn btn-danger btn-small" id="delete-prompt-btn" title="Delete selected prompt" disabled>Delete</button>
+                <small class="form-hint">Manage series in <a href="/admin">Admin</a></small>
             </div>
-
-            <textarea id="custom-prompt" class="prompt-input" placeholder="Select a preset above or type your evaluation prompt here..."></textarea>
-
-            <div id="save-controls" class="save-controls hidden">
-                <input type="text" id="save-prompt-name" placeholder="Save as..." class="save-prompt-input">
-                <button type="button" class="btn btn-secondary btn-small" id="save-prompt-btn">Save</button>
+            <div class="form-group">
+                <label for="exam-form">Form</label>
+                <select id="exam-form" class="form-control">
+                    <option value="">-- Select Form --</option>
+                    <option value="Form 1">Form 1</option>
+                    <option value="Form 2">Form 2</option>
+                    <option value="Form 3">Form 3</option>
+                    <option value="Form 4">Form 4</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="exam-subject">Subject</label>
+                <select id="exam-subject" class="form-control">
+                    <option value="">-- Select Subject --</option>
+                </select>
+                <small class="form-hint">Manage subjects in <a href="/admin">Admin</a></small>
             </div>
         </div>
 
-        <!-- Marking Scheme Section -->
-        <div class="form-section">
-            <label>
-                Teacher's Marking Scheme
-                <span class="optional">(Optional)</span>
-            </label>
-            <div class="file-upload" id="scheme-dropzone">
-                <input type="file" id="scheme-input" accept=".pdf,.png,.jpg,.jpeg" hidden>
-                <div class="file-upload-content">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                        <polyline points="14 2 14 8 20 8"/>
-                        <line x1="16" y1="13" x2="8" y2="13"/>
-                        <line x1="16" y1="17" x2="8" y2="17"/>
-                    </svg>
-                    <span>Upload marking scheme (PDF or image)</span>
+        <div class="form-group">
+            <label for="preset-select">Evaluation Prompt</label>
+            <select id="preset-select" class="form-control">
+                <option value="">-- Select Saved Prompt --</option>
+            </select>
+            <textarea id="custom-prompt" class="form-control textarea-mono" placeholder="Enter evaluation criteria or select a saved prompt above..."></textarea>
+            <div id="save-controls" class="inline-form hidden">
+                <input type="text" id="save-prompt-name" placeholder="Prompt name..." class="form-control">
+                <button type="button" class="btn btn-secondary" id="save-prompt-btn">Save Prompt</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Marking Scheme <span class="text-muted">(Optional)</span></label>
+            <div class="form-row">
+                <div class="form-group" style="flex: 0 0 200px;">
+                    <div class="dropzone" id="scheme-dropzone">
+                        <input type="file" id="scheme-input" accept=".pdf,.png,.jpg,.jpeg" hidden>
+                        <div class="dropzone-content">
+                            <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                <path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/>
+                            </svg>
+                            <span>Drop file or click</span>
+                        </div>
+                    </div>
+                    <div id="scheme-preview" class="file-tag hidden">
+                        <span id="scheme-name"></span>
+                        <button type="button" class="file-tag-remove" id="remove-scheme">&times;</button>
+                    </div>
+                    <div id="scheme-loading" class="hidden" style="padding: 0.5rem; color: var(--gray-500);">
+                        <span class="spinner-small"></span> Transcribing...
+                    </div>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <textarea id="scheme-transcription" class="form-control textarea-mono" rows="6" placeholder="Transcribed marking scheme will appear here after upload. You can edit it to correct any errors."></textarea>
                 </div>
             </div>
-            <div id="scheme-preview" class="file-preview hidden">
-                <span id="scheme-name"></span>
-                <button type="button" class="btn-link" id="remove-scheme">Remove</button>
-            </div>
         </div>
 
-        <!-- Student Booklets Section -->
-        <div class="form-section">
-            <label>Student Answer Booklets</label>
-            <div class="file-upload" id="students-dropzone">
-                <input type="file" id="students-input" accept=".pdf,.png,.jpg,.jpeg" multiple hidden>
-                <div class="file-upload-content">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                        <circle cx="9" cy="7" r="4"/>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                    </svg>
-                    <span>Upload student answer booklets (multiple allowed)</span>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Student Scripts</label>
+                <div class="dropzone" id="scripts-dropzone">
+                    <input type="file" id="scripts-input" accept=".pdf,.png,.jpg,.jpeg" multiple hidden>
+                    <div class="dropzone-content">
+                        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                            <path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/>
+                        </svg>
+                        <span>Drop files or click (multiple)</span>
+                    </div>
                 </div>
+                <div id="scripts-list" class="file-tags"></div>
             </div>
-            <div id="students-list" class="files-list"></div>
         </div>
 
-        <!-- Submit Button -->
-        <button type="button" class="btn btn-primary btn-large" id="submit-btn">Review Exams</button>
+        <button type="button" class="btn btn-primary btn-lg" id="create-exam-btn">Create Exam & Evaluate</button>
     </div>
 
-    <div id="loading" class="loading hidden">
+    <div id="loading" class="loading-box hidden">
         <div class="spinner"></div>
-        <p>Analyzing with AI...</p>
-        <p id="progress-text" class="progress-text"></p>
+        <p id="progress-text">Processing...</p>
     </div>
 
-    <div id="error" class="error hidden"></div>
+    <div id="error" class="alert alert-error hidden"></div>
 
-    <div id="results-list" class="results-list hidden"></div>
-    <div id="export-container" class="hidden" style="margin-top: 1rem; text-align: center;">
-        <button type="button" class="btn btn-secondary" id="export-batch-btn">Export Results as CSV</button>
+    <!-- Recent Exams -->
+    <div class="card">
+        <h2>Recent Exams</h2>
+        <div id="exams-list"></div>
     </div>
 </div>
 {% endblock %}
@@ -89,367 +116,259 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', async function() {
-    let savedPrompts = [];
+    let subjects = [], series = [], exams = [], savedPrompts = [];
     let currentPresetPrompt = '';
-    const promptInput = document.getElementById('custom-prompt');
-    const presetSelect = document.getElementById('preset-select');
-    const saveControls = document.getElementById('save-controls');
-    const savePromptName = document.getElementById('save-prompt-name');
-    const savePromptBtn = document.getElementById('save-prompt-btn');
-    const deletePromptBtn = document.getElementById('delete-prompt-btn');
-    const exportContainer = document.getElementById('export-container');
-    const exportBatchBtn = document.getElementById('export-batch-btn');
-    let lastResults = [];
+    let scriptFiles = [];
 
-    // Scheme file
+    const examSeries = document.getElementById('exam-series');
+    const examForm = document.getElementById('exam-form');
+    const examSubject = document.getElementById('exam-subject');
+    const presetSelect = document.getElementById('preset-select');
+    const promptInput = document.getElementById('custom-prompt');
+    const saveControls = document.getElementById('save-controls');
     const schemeInput = document.getElementById('scheme-input');
     const schemeDropzone = document.getElementById('scheme-dropzone');
     const schemePreview = document.getElementById('scheme-preview');
-    const schemeName = document.getElementById('scheme-name');
-
-    // Student files
-    const studentsInput = document.getElementById('students-input');
-    const studentsDropzone = document.getElementById('students-dropzone');
-    const studentsList = document.getElementById('students-list');
-    let studentFiles = [];
-
-    const submitBtn = document.getElementById('submit-btn');
+    const scriptsInput = document.getElementById('scripts-input');
+    const scriptsDropzone = document.getElementById('scripts-dropzone');
+    const scriptsListEl = document.getElementById('scripts-list');
+    const createExamBtn = document.getElementById('create-exam-btn');
+    const examsList = document.getElementById('exams-list');
     const loading = document.getElementById('loading');
     const progressText = document.getElementById('progress-text');
     const errorDiv = document.getElementById('error');
-    const resultsList = document.getElementById('results-list');
 
-    // Load prompts
-    await loadPrompts();
+    await Promise.all([loadSubjects(), loadSeries(), loadExams(), loadPrompts()]);
+
+    async function loadSubjects() {
+        const res = await fetch('/api/subjects');
+        subjects = await res.json();
+        examSubject.innerHTML = '<option value="">-- Select Subject --</option>' +
+            subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    }
+
+    async function loadSeries() {
+        const res = await fetch('/api/series');
+        series = await res.json();
+        examSeries.innerHTML = '<option value="">-- Select Series --</option>' +
+            series.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+    }
+
+    async function loadExams() {
+        const res = await fetch('/api/exams');
+        exams = await res.json();
+        renderExams();
+    }
 
     async function loadPrompts() {
-        try {
-            const res = await fetch('/api/reviews/prompts/saved');
-            const data = await res.json();
-            savedPrompts = data.prompts || [];
-            promptInput.value = '';
-            currentPresetPrompt = '';
-            populatePresets();
-        } catch (err) {
-            console.error('Failed to load prompts:', err);
-        }
+        const res = await fetch('/api/prompts/saved');
+        const data = await res.json();
+        savedPrompts = data.prompts || [];
+        presetSelect.innerHTML = '<option value="">-- Select Saved Prompt --</option>' +
+            savedPrompts.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
     }
 
-    // Populate presets dropdown
-    function populatePresets() {
-        presetSelect.innerHTML = '<option value="">-- Select Prompt --</option>';
-        savedPrompts.forEach(p => {
-            const option = document.createElement('option');
-            option.value = p.name;
-            option.textContent = p.name;
-            presetSelect.appendChild(option);
-        });
-    }
-
-    // Handle preset selection
-    presetSelect.addEventListener('change', () => {
-        const name = presetSelect.value;
-        deletePromptBtn.disabled = !name;
-        if (!name) {
-            promptInput.value = '';
-            currentPresetPrompt = '';
-            saveControls.classList.add('hidden');
+    function renderExams() {
+        if (exams.length === 0) {
+            examsList.innerHTML = '<p class="empty-state">No exams yet. Create one above!</p>';
             return;
         }
-
-        const prompt = savedPrompts.find(p => p.name === name);
-        if (prompt) {
-            promptInput.value = prompt.prompt;
-            currentPresetPrompt = prompt.prompt;
-        }
-        saveControls.classList.add('hidden');
-    });
-
-    // Delete prompt
-    deletePromptBtn.addEventListener('click', async () => {
-        const name = presetSelect.value;
-        if (!name) return;
-
-        if (!confirm(`Delete prompt "${name}"?`)) return;
-
-        try {
-            const res = await fetch(`/api/reviews/prompts/${encodeURIComponent(name)}`, { method: 'DELETE' });
-            if (res.ok) {
-                promptInput.value = '';
-                currentPresetPrompt = '';
-                presetSelect.value = '';
-                deletePromptBtn.disabled = true;
-                await loadPrompts();
-            } else {
-                alert('Failed to delete prompt');
-            }
-        } catch (err) {
-            alert('Error deleting prompt');
-        }
-    });
-
-    // Show save controls when prompt is edited
-    promptInput.addEventListener('input', () => {
-        const hasContent = promptInput.value.trim().length > 0;
-        const isChanged = promptInput.value !== currentPresetPrompt;
-        const isHidden = saveControls.classList.contains('hidden');
-
-        if (hasContent && isChanged) {
-            if (isHidden) {
-                if (presetSelect.value) {
-                    const selectedOption = presetSelect.options[presetSelect.selectedIndex];
-                    savePromptName.value = selectedOption.textContent.replace(' *', '');
-                } else {
-                    savePromptName.value = '';
-                }
-            }
-            saveControls.classList.remove('hidden');
-        } else {
-            saveControls.classList.add('hidden');
-        }
-    });
-
-    // Save prompt
-    savePromptBtn.addEventListener('click', async () => {
-        const name = savePromptName.value.trim();
-        if (!name) {
-            alert('Enter a name');
-            return;
-        }
-
-        try {
-            await fetch('/api/reviews/prompts/save', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, prompt: promptInput.value })
-            });
-
-            currentPresetPrompt = promptInput.value;
-            saveControls.classList.add('hidden');
-            savePromptName.value = '';
-
-            // Reload prompts and select the saved one
-            const res = await fetch('/api/reviews/prompts/saved');
-            const data = await res.json();
-            savedPrompts = data.prompts || [];
-            populatePresets();
-            presetSelect.value = name;
-        } catch (err) {
-            alert('Failed to save prompt');
-        }
-    });
-
-    // Scheme file upload
-    setupDropzone(schemeDropzone, schemeInput, (file) => {
-        schemeName.textContent = file.name;
-        schemePreview.classList.remove('hidden');
-        schemeDropzone.classList.add('hidden');
-    });
-
-    document.getElementById('remove-scheme').addEventListener('click', () => {
-        schemeInput.value = '';
-        schemePreview.classList.add('hidden');
-        schemeDropzone.classList.remove('hidden');
-    });
-
-    // Student files upload
-    setupDropzone(studentsDropzone, studentsInput, (files) => {
-        for (const file of files) {
-            if (!studentFiles.find(f => f.name === file.name)) {
-                studentFiles.push(file);
-            }
-        }
-        renderStudentFiles();
-    }, true);
-
-    function setupDropzone(dropzone, input, onFiles, multiple = false) {
-        dropzone.addEventListener('click', () => input.click());
-
-        dropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropzone.classList.add('dragover');
-        });
-
-        dropzone.addEventListener('dragleave', () => {
-            dropzone.classList.remove('dragover');
-        });
-
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropzone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                if (multiple) {
-                    onFiles(Array.from(e.dataTransfer.files));
-                } else {
-                    onFiles(e.dataTransfer.files[0]);
-                }
-            }
-        });
-
-        input.addEventListener('change', () => {
-            if (input.files.length) {
-                if (multiple) {
-                    onFiles(Array.from(input.files));
-                } else {
-                    onFiles(input.files[0]);
-                }
-            }
-        });
-    }
-
-    function renderStudentFiles() {
-        studentsList.innerHTML = studentFiles.map((file, index) => `
-            <div class="file-item">
-                <span>${file.name}</span>
-                <button type="button" class="btn-link" onclick="removeStudent(${index})">Remove</button>
+        examsList.innerHTML = exams.slice(0, 10).map(e => `
+            <div class="list-item">
+                <div class="list-item-main">
+                    <strong>${e.subject_name}</strong>
+                    <span class="badge badge-secondary">${e.form}</span>
+                    <span class="badge badge-primary">${e.series_name}</span>
+                </div>
+                <div class="list-item-meta">
+                    <span>${e.script_count} scripts</span>
+                    <span>${e.evaluated_count} evaluated</span>
+                    ${e.average_score !== null ? `<span class="text-success">${e.average_score.toFixed(1)}%</span>` : ''}
+                </div>
+                <a href="/exam/${e.id}" class="btn btn-sm">View</a>
             </div>
         `).join('');
     }
 
-    window.removeStudent = (index) => {
-        studentFiles.splice(index, 1);
-        renderStudentFiles();
-    };
+    // Prompt handling
+    presetSelect.addEventListener('change', () => {
+        const name = presetSelect.value;
+        if (!name) { promptInput.value = ''; currentPresetPrompt = ''; return; }
+        const prompt = savedPrompts.find(p => p.name === name);
+        if (prompt) { promptInput.value = prompt.prompt; currentPresetPrompt = prompt.prompt; }
+        saveControls.classList.add('hidden');
+    });
 
-    // Submit
-    submitBtn.addEventListener('click', async () => {
-        if (studentFiles.length === 0) {
-            showError('Please upload at least one student answer booklet');
-            return;
+    promptInput.addEventListener('input', () => {
+        const hasContent = promptInput.value.trim().length > 0;
+        const isChanged = promptInput.value !== currentPresetPrompt;
+        saveControls.classList.toggle('hidden', !(hasContent && isChanged));
+    });
+
+    document.getElementById('save-prompt-btn').addEventListener('click', async () => {
+        const name = document.getElementById('save-prompt-name').value.trim();
+        if (!name) { alert('Enter a name'); return; }
+        await fetch('/api/prompts/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, prompt: promptInput.value })
+        });
+        currentPresetPrompt = promptInput.value;
+        saveControls.classList.add('hidden');
+        await loadPrompts();
+        presetSelect.value = name;
+    });
+
+    // File handling
+    function setupDropzone(dropzone, input, onFiles, multiple = false) {
+        dropzone.addEventListener('click', () => input.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) onFiles(multiple ? Array.from(e.dataTransfer.files) : e.dataTransfer.files[0]);
+        });
+        input.addEventListener('change', () => {
+            if (input.files.length) onFiles(multiple ? Array.from(input.files) : input.files[0]);
+        });
+    }
+
+    const schemeTranscription = document.getElementById('scheme-transcription');
+    const schemeLoading = document.getElementById('scheme-loading');
+    let currentSchemeFile = null;
+
+    setupDropzone(schemeDropzone, schemeInput, async (file) => {
+        currentSchemeFile = file;
+        document.getElementById('scheme-name').textContent = file.name;
+        schemePreview.classList.remove('hidden');
+        schemeDropzone.classList.add('hidden');
+        schemeLoading.classList.remove('hidden');
+        schemeTranscription.value = '';
+        schemeTranscription.placeholder = 'Transcribing marking scheme...';
+
+        // Upload and transcribe immediately
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // We need an exam ID to upload, so we'll create a temporary placeholder
+            // Actually, we'll do the transcription client-side or defer until exam creation
+            // For now, let's just show the file is selected and transcribe during exam creation
+            // But the user wants immediate transcription, so we need a different approach
+
+            // Let's add a dedicated transcription endpoint that doesn't require an exam
+            const res = await fetch('/api/transcribe-marking-scheme', {
+                method: 'POST',
+                body: formData
+            });
+            if (res.ok) {
+                const data = await res.json();
+                schemeTranscription.value = data.transcription;
+            } else {
+                schemeTranscription.value = 'Error transcribing. You can type the marking scheme manually.';
+            }
+        } catch (err) {
+            schemeTranscription.value = 'Error transcribing. You can type the marking scheme manually.';
+        } finally {
+            schemeLoading.classList.add('hidden');
+            schemeTranscription.placeholder = 'Transcribed marking scheme. You can edit it to correct any errors.';
         }
+    });
+
+    document.getElementById('remove-scheme').addEventListener('click', () => {
+        schemeInput.value = '';
+        currentSchemeFile = null;
+        schemePreview.classList.add('hidden');
+        schemeDropzone.classList.remove('hidden');
+        schemeTranscription.value = '';
+        schemeTranscription.placeholder = 'Transcribed marking scheme will appear here after upload. You can edit it to correct any errors.';
+    });
+
+    setupDropzone(scriptsDropzone, scriptsInput, (files) => {
+        for (const file of files) {
+            if (!scriptFiles.find(f => f.name === file.name)) scriptFiles.push(file);
+        }
+        renderScriptFiles();
+    }, true);
+
+    function renderScriptFiles() {
+        scriptsListEl.innerHTML = scriptFiles.map((f, i) => `
+            <div class="file-tag">
+                <span>${f.name}</span>
+                <button type="button" class="file-tag-remove" onclick="removeScript(${i})">&times;</button>
+            </div>
+        `).join('');
+    }
+
+    window.removeScript = (i) => { scriptFiles.splice(i, 1); renderScriptFiles(); };
+
+    // Create exam
+    createExamBtn.addEventListener('click', async () => {
+        const seriesId = examSeries.value;
+        const formValue = examForm.value;
+        const subjectId = examSubject.value;
+
+        if (!seriesId) { showError('Please select an exam series'); return; }
+        if (!formValue) { showError('Please select a form'); return; }
+        if (!subjectId) { showError('Please select a subject'); return; }
+        if (scriptFiles.length === 0) { showError('Please upload at least one student script'); return; }
 
         loading.classList.remove('hidden');
         errorDiv.classList.add('hidden');
-        resultsList.classList.add('hidden');
-        resultsList.innerHTML = '';
-
-        const customPrompt = promptInput.value.trim();
-        const schemeFile = schemeInput.files[0] || null;
 
         try {
-            const results = [];
+            progressText.textContent = 'Creating exam...';
+            const examRes = await fetch('/api/exams', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    series_id: parseInt(seriesId),
+                    form: formValue,
+                    subject_id: parseInt(subjectId),
+                    evaluation_prompt: promptInput.value.trim() || null
+                })
+            });
+            if (!examRes.ok) throw new Error((await examRes.json()).detail || 'Failed to create exam');
+            const exam = await examRes.json();
 
-            for (let i = 0; i < studentFiles.length; i++) {
-                progressText.textContent = `Processing ${i + 1} of ${studentFiles.length}: ${studentFiles[i].name}`;
-
-                const formData = new FormData();
-                formData.append('file', studentFiles[i]);
-                if (schemeFile) {
-                    formData.append('marking_scheme', schemeFile);
-                }
-                // Always send the prompt so image evaluation knows to use it
-                if (customPrompt) {
-                    formData.append('custom_prompt', customPrompt);
-                }
-
-                const response = await fetch('/api/reviews/upload', {
-                    method: 'POST',
-                    body: formData
+            // Upload marking scheme file and/or save transcription
+            if (currentSchemeFile) {
+                progressText.textContent = 'Uploading marking scheme...';
+                const schemeFormData = new FormData();
+                schemeFormData.append('file', currentSchemeFile);
+                await fetch(`/api/exams/${exam.id}/marking-scheme`, { method: 'POST', body: schemeFormData });
+            }
+            // Save the (possibly edited) transcription
+            const transcriptionText = schemeTranscription.value.trim();
+            if (transcriptionText) {
+                await fetch(`/api/exams/${exam.id}/marking-scheme-text`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: transcriptionText })
                 });
-
-                if (!response.ok) {
-                    const data = await response.json();
-                    results.push({ file: studentFiles[i].name, error: data.detail });
-                } else {
-                    const data = await response.json();
-                    results.push({ file: studentFiles[i].name, data });
-                }
             }
 
-            loading.classList.add('hidden');
-            showResults(results);
+            progressText.textContent = 'Uploading student scripts...';
+            const scriptsForm = new FormData();
+            scriptFiles.forEach(f => scriptsForm.append('files', f));
+            await fetch(`/api/exams/${exam.id}/scripts`, { method: 'POST', body: scriptsForm });
 
+            progressText.textContent = 'Evaluating scripts with AI...';
+            await fetch(`/api/exams/${exam.id}/evaluate`, { method: 'POST' });
+
+            loading.classList.add('hidden');
+            window.location.href = `/exam/${exam.id}`;
         } catch (err) {
             showError(err.message);
             loading.classList.add('hidden');
         }
     });
 
-    function showResults(results) {
-        // Sort by score descending (highest first), errors at bottom
-        results.sort((a, b) => {
-            const scoreA = a.error ? -1 : (a.data.total_score || 0);
-            const scoreB = b.error ? -1 : (b.data.total_score || 0);
-            return scoreB - scoreA;
-        });
-
-        lastResults = results;
-
-        const successful = results.filter(r => !r.error);
-        const avgScore = successful.length > 0
-            ? (successful.reduce((sum, r) => sum + (r.data.total_score || 0), 0) / successful.length).toFixed(1)
-            : 0;
-
-        resultsList.innerHTML = `
-            <h2>Results Summary (Ranked by Score)</h2>
-            <div style="margin-bottom: 1rem; padding: 1rem; background: var(--gray-50); border-radius: 0.5rem;">
-                <strong>Students:</strong> ${results.length} |
-                <strong>Average Score:</strong> ${avgScore}%
-            </div>
-            <table class="results-table">
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Student File</th>
-                        <th>Score</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${results.map((r, i) => {
-                        if (r.error) {
-                            return `<tr class="result-error">
-                                <td>-</td>
-                                <td>${r.file}</td>
-                                <td class="error-text">${r.error}</td>
-                                <td>-</td>
-                            </tr>`;
-                        }
-                        const d = r.data;
-                        const scoreClass = d.total_score >= 70 ? 'score-good' : d.total_score >= 50 ? 'score-ok' : 'score-bad';
-                        return `<tr>
-                            <td>${i + 1}</td>
-                            <td>${r.file}</td>
-                            <td class="${scoreClass}" style="font-weight: 600;">${d.total_score?.toFixed(1) || 0}%</td>
-                            <td><a href="/results/${d.id}" class="btn-link">View</a></td>
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>
-        `;
-        resultsList.classList.remove('hidden');
-        exportContainer.classList.remove('hidden');
-    }
-
-    function showError(message) {
-        errorDiv.textContent = message;
+    function showError(msg) {
+        errorDiv.textContent = msg;
         errorDiv.classList.remove('hidden');
     }
-
-    // Export batch results as CSV
-    exportBatchBtn.addEventListener('click', () => {
-        if (lastResults.length === 0) return;
-
-        const successful = lastResults.filter(r => !r.error);
-        let csvContent = 'Rank,Student File,Score,Status\n';
-
-        lastResults.forEach((r, i) => {
-            if (r.error) {
-                csvContent += `${i + 1},"${r.file}",,"Error: ${r.error.replace(/"/g, '""')}"\n`;
-            } else {
-                const score = r.data.total_score?.toFixed(1) || '0';
-                csvContent += `${i + 1},"${r.file}",${score}%,Completed\n`;
-            }
-        });
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'batch_results.csv';
-        a.click();
-        URL.revokeObjectURL(url);
-    });
 });
 </script>
 {% endblock %}

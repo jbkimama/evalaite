@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Evalaite{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1>Administration</h1>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab active" data-tab="users">Users</button>
+        <button class="tab" data-tab="subjects">Subjects</button>
+        <button class="tab" data-tab="series">Exam Series</button>
+    </div>
+
+    <!-- Users Tab -->
+    <div id="users-tab" class="tab-content active">
+        <div class="card">
+            <div class="card-header">
+                <h2>User Management</h2>
+                <button type="button" class="btn btn-primary" onclick="showAddUserModal()">Add User</button>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Subjects Tab -->
+    <div id="subjects-tab" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <h2>Subjects</h2>
+            </div>
+            <div class="add-item-form">
+                <input type="text" id="new-subject" placeholder="Enter subject name (e.g., Mathematics)" class="form-control">
+                <button class="btn btn-primary" id="add-subject-btn">Add Subject</button>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="subjects-tbody"></tbody>
+            </table>
+            <p id="no-subjects" class="text-muted text-center hidden">No subjects yet. Add one above!</p>
+        </div>
+    </div>
+
+    <!-- Series Tab -->
+    <div id="series-tab" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <h2>Exam Series</h2>
+            </div>
+            <div class="add-item-form">
+                <input type="text" id="new-series" placeholder="Series name (e.g., Mid-term 2026)" class="form-control">
+                <button class="btn btn-primary" id="add-series-btn">Add Series</button>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Exams</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="series-tbody"></tbody>
+            </table>
+            <p id="no-series" class="text-muted text-center hidden">No exam series yet. Add one above!</p>
+        </div>
+    </div>
+</div>
+
+<!-- User Modal -->
+<div id="user-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modal-title">Add User</h2>
+            <button class="modal-close" onclick="hideUserModal()">&times;</button>
+        </div>
+        <form id="user-form">
+            <input type="hidden" id="edit-user-id">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" class="form-control" required minlength="3">
+            </div>
+            <div class="form-group">
+                <label>Password <span id="password-hint" class="text-muted hidden">(leave blank to keep current)</span></label>
+                <input type="password" id="password" class="form-control" minlength="4">
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <select id="role" class="form-control">
+                    <option value="teacher">Teacher</option>
+                    <option value="superadmin">Superadmin</option>
+                </select>
+            </div>
+            <div id="user-error" class="alert alert-error hidden"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="hideUserModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="submit-btn">Add User</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--gray-200);
+}
+.tab {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    background: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--gray-500);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s;
+}
+.tab:hover {
+    color: var(--gray-700);
+}
+.tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+.tab-content {
+    display: none;
+}
+.tab-content.active {
+    display: block;
+}
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.card-header h2 {
+    margin: 0;
+}
+.add-item-form {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+.add-item-form input {
+    flex: 1;
+}
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.data-table th,
+.data-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--gray-200);
+}
+.data-table th {
+    font-weight: 600;
+    color: var(--gray-600);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+}
+.data-table tr:hover {
+    background: var(--gray-50);
+}
+.role-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.role-superadmin { background: #fef3c7; color: #92400e; }
+.role-teacher { background: #dbeafe; color: #1e40af; }
+.status-active { color: var(--success); font-weight: 500; }
+.status-inactive { color: var(--danger); font-weight: 500; }
+.action-btns {
+    display: flex;
+    gap: 0.5rem;
+}
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: white;
+    border-radius: 0.75rem;
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--gray-400);
+}
+.modal-close:hover {
+    color: var(--gray-700);
+}
+#user-form {
+    padding: 1.5rem;
+}
+.modal-footer {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let users = [], subjects = [], series = [];
+let editingUserId = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await Promise.all([loadUsers(), loadSubjects(), loadSeries()]);
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+        });
+    });
+});
+
+// === Users ===
+async function loadUsers() {
+    try {
+        const res = await fetch('/api/admin/users');
+        users = await res.json();
+        renderUsers();
+    } catch (err) {
+        console.error('Failed to load users:', err);
+    }
+}
+
+function renderUsers() {
+    document.getElementById('users-tbody').innerHTML = users.map(u => `
+        <tr>
+            <td><strong>${u.username}</strong></td>
+            <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+            <td class="${u.is_active ? 'status-active' : 'status-inactive'}">${u.is_active ? 'Active' : 'Inactive'}</td>
+            <td>${new Date(u.created_at).toLocaleDateString()}</td>
+            <td class="action-btns">
+                <button class="btn btn-small" onclick="showEditUserModal(${u.id})">Edit</button>
+                <button class="btn btn-danger btn-small" onclick="deleteUser(${u.id})">Delete</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showAddUserModal() {
+    editingUserId = null;
+    document.getElementById('modal-title').textContent = 'Add User';
+    document.getElementById('submit-btn').textContent = 'Add User';
+    document.getElementById('password-hint').classList.add('hidden');
+    document.getElementById('password').required = true;
+    document.getElementById('user-form').reset();
+    document.getElementById('user-error').classList.add('hidden');
+    document.getElementById('user-modal').classList.remove('hidden');
+}
+
+function showEditUserModal(userId) {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    editingUserId = userId;
+    document.getElementById('modal-title').textContent = 'Edit User';
+    document.getElementById('submit-btn').textContent = 'Save Changes';
+    document.getElementById('password-hint').classList.remove('hidden');
+    document.getElementById('password').required = false;
+    document.getElementById('username').value = user.username;
+    document.getElementById('password').value = '';
+    document.getElementById('role').value = user.role;
+    document.getElementById('user-error').classList.add('hidden');
+    document.getElementById('user-modal').classList.remove('hidden');
+}
+
+function hideUserModal() {
+    document.getElementById('user-modal').classList.add('hidden');
+    editingUserId = null;
+}
+
+document.getElementById('user-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errorDiv = document.getElementById('user-error');
+    errorDiv.classList.add('hidden');
+
+    const data = {
+        username: document.getElementById('username').value,
+        role: document.getElementById('role').value
+    };
+    const password = document.getElementById('password').value;
+    if (password) data.password = password;
+
+    try {
+        const url = editingUserId ? `/api/admin/users/${editingUserId}` : '/api/admin/users';
+        const method = editingUserId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (!res.ok) {
+            errorDiv.textContent = result.detail || 'Operation failed';
+            errorDiv.classList.remove('hidden');
+            return;
+        }
+        hideUserModal();
+        loadUsers();
+    } catch (err) {
+        errorDiv.textContent = 'An error occurred';
+        errorDiv.classList.remove('hidden');
+    }
+});
+
+async function deleteUser(userId) {
+    if (!confirm('Delete this user? This cannot be undone.')) return;
+    const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+    if (res.ok) loadUsers();
+    else alert((await res.json()).detail || 'Failed to delete');
+}
+
+// === Subjects ===
+async function loadSubjects() {
+    const res = await fetch('/api/subjects');
+    subjects = await res.json();
+    renderSubjects();
+}
+
+function renderSubjects() {
+    const tbody = document.getElementById('subjects-tbody');
+    const noMsg = document.getElementById('no-subjects');
+    if (subjects.length === 0) {
+        tbody.innerHTML = '';
+        noMsg.classList.remove('hidden');
+    } else {
+        noMsg.classList.add('hidden');
+        tbody.innerHTML = subjects.map(s => `
+            <tr>
+                <td><strong>${s.name}</strong></td>
+                <td>${new Date(s.created_at).toLocaleDateString()}</td>
+                <td>
+                    <button class="btn btn-danger btn-small" onclick="deleteSubject(${s.id})">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+}
+
+document.getElementById('add-subject-btn').addEventListener('click', async () => {
+    const input = document.getElementById('new-subject');
+    const name = input.value.trim();
+    if (!name) return;
+    await fetch('/api/subjects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    input.value = '';
+    loadSubjects();
+});
+
+async function deleteSubject(id) {
+    if (!confirm('Delete this subject? All exams using this subject will also be deleted.')) return;
+    await fetch(`/api/subjects/${id}`, { method: 'DELETE' });
+    loadSubjects();
+}
+
+// === Series ===
+async function loadSeries() {
+    const res = await fetch('/api/series');
+    series = await res.json();
+    renderSeries();
+}
+
+function renderSeries() {
+    const tbody = document.getElementById('series-tbody');
+    const noMsg = document.getElementById('no-series');
+    if (series.length === 0) {
+        tbody.innerHTML = '';
+        noMsg.classList.remove('hidden');
+    } else {
+        noMsg.classList.add('hidden');
+        tbody.innerHTML = series.map(s => `
+            <tr>
+                <td><strong>${s.name}</strong></td>
+                <td>${s.exam_count}</td>
+                <td>${new Date(s.created_at).toLocaleDateString()}</td>
+                <td>
+                    <button class="btn btn-danger btn-small" onclick="deleteSeries(${s.id})">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+}
+
+document.getElementById('add-series-btn').addEventListener('click', async () => {
+    const nameInput = document.getElementById('new-series');
+    const name = nameInput.value.trim();
+    if (!name) return;
+    await fetch('/api/series', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    nameInput.value = '';
+    loadSeries();
+});
+
+async function deleteSeries(id) {
+    if (!confirm('Delete this series? All exams in this series will also be deleted.')) return;
+    await fetch(`/api/series/${id}`, { method: 'DELETE' });
+    loadSeries();
+}
+</script>
+{% endblock %}
